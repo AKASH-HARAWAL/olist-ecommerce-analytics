@@ -52,3 +52,33 @@ SELECT
 FROM customer_metrics cm
 ORDER BY clv_historical DESC
 LIMIT 20;
+
+-- CLV tier distribution summary
+WITH customer_orders AS (
+    SELECT 
+        c.customer_unique_id,
+        o.order_id,
+        p.payment_value
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN order_payments p ON o.order_id = p.order_id
+    WHERE o.order_status = 'delivered'
+),
+customer_metrics AS (
+    SELECT 
+        customer_unique_id,
+        SUM(payment_value) AS total_spend
+    FROM customer_orders
+    GROUP BY customer_unique_id
+)
+SELECT 
+    CASE 
+        WHEN total_spend >= 1000 THEN 'High Value'
+        WHEN total_spend >= 300 THEN 'Medium Value'
+        ELSE 'Low Value'
+    END AS clv_tier,
+    COUNT(*) AS num_customers,
+    ROUND(AVG(total_spend), 2) AS avg_spend
+FROM customer_metrics
+GROUP BY clv_tier
+ORDER BY avg_spend DESC;
