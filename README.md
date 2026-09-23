@@ -1,1 +1,2 @@
-# olist-ecommerce-analytics
+## Dataset
+This project uses the [Olist Brazilian E-Commerce dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) from Kaggle. Download it and place the CSVs in a `data/` folder to reproduce this analysis.
