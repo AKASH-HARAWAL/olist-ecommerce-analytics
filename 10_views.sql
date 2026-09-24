@@ -93,3 +93,47 @@ WHERE o.order_status = 'delivered'
     AND o.order_delivered_customer_date IS NOT NULL
 GROUP BY c.customer_state
 HAVING COUNT(*) >= 50;
+
+
+CREATE VIEW vw_cohort_retention AS
+WITH customer_orders AS (
+    SELECT 
+        c.customer_unique_id,
+        o.order_id,
+        o.order_purchase_timestamp
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    WHERE o.order_status = 'delivered'
+),
+first_purchase AS (
+    SELECT 
+        customer_unique_id,
+        DATE_TRUNC('month', MIN(order_purchase_timestamp)) AS cohort_month
+    FROM customer_orders
+    GROUP BY customer_unique_id
+),
+customer_activity AS (
+    SELECT 
+        co.customer_unique_id,
+        fp.cohort_month,
+        DATE_TRUNC('month', co.order_purchase_timestamp) AS activity_month,
+        (DATE_PART('year', DATE_TRUNC('month', co.order_purchase_timestamp)) - DATE_PART('year', fp.cohort_month)) * 12 +
+        (DATE_PART('month', DATE_TRUNC('month', co.order_purchase_timestamp)) - DATE_PART('month', fp.cohort_month)) AS months_since_first_purchase
+    FROM customer_orders co
+    JOIN first_purchase fp ON co.customer_unique_id = fp.customer_unique_id
+),
+cohort_size AS (
+    SELECT cohort_month, COUNT(DISTINCT customer_unique_id) AS num_customers
+    FROM first_purchase
+    GROUP BY cohort_month
+)
+SELECT 
+    ca.cohort_month,
+    cs.num_customers AS cohort_size,
+    ca.months_since_first_purchase,
+    COUNT(DISTINCT ca.customer_unique_id) AS active_customers,
+    ROUND(COUNT(DISTINCT ca.customer_unique_id) * 100.0 / cs.num_customers, 2) AS retention_pct
+FROM customer_activity ca
+JOIN cohort_size cs ON ca.cohort_month = cs.cohort_month
+GROUP BY ca.cohort_month, cs.num_customers, ca.months_since_first_purchase
+ORDER BY ca.cohort_month, ca.months_since_first_purchase;
