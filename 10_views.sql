@@ -137,3 +137,64 @@ FROM customer_activity ca
 JOIN cohort_size cs ON ca.cohort_month = cs.cohort_month
 GROUP BY ca.cohort_month, cs.num_customers, ca.months_since_first_purchase
 ORDER BY ca.cohort_month, ca.months_since_first_purchase;
+
+-- View 4: CLV Tier Distribution
+CREATE VIEW vw_clv_tiers AS
+WITH customer_orders AS (
+    SELECT 
+        c.customer_unique_id,
+        o.order_id,
+        p.payment_value
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN order_payments p ON o.order_id = p.order_id
+    WHERE o.order_status = 'delivered'
+),
+customer_metrics AS (
+    SELECT 
+        customer_unique_id,
+        SUM(payment_value) AS total_spend
+    FROM customer_orders
+    GROUP BY customer_unique_id
+)
+SELECT 
+    CASE 
+        WHEN total_spend >= 1000 THEN 'High Value'
+        WHEN total_spend >= 300 THEN 'Medium Value'
+        ELSE 'Low Value'
+    END AS clv_tier,
+    COUNT(*) AS num_customers,
+    ROUND(AVG(total_spend), 2) AS avg_spend
+FROM customer_metrics
+GROUP BY clv_tier;
+
+-- View 5: Cohort Retention
+CREATE VIEW vw_cohort_retention AS
+WITH customer_orders AS (
+    SELECT 
+        c.customer_unique_id,
+        o.order_id,
+        o.order_purchase_timestamp
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    WHERE o.order_status = 'delivered'
+),
+first_purchase AS (
+    SELECT 
+        customer_unique_id,
+        DATE_TRUNC('month', MIN(order_purchase_timestamp)) AS cohort_month
+    FROM customer_orders
+    GROUP BY customer_unique_id
+),
+customer_activity AS (
+    SELECT 
+        co.customer_unique_id,
+        fp.cohort_month,
+        DATE_TRUNC('month', co.order_purchase_timestamp) AS activity_month,
+        (DATE_PART('year', DATE_TRUNC('month', co.order_purchase_timestamp)) - DATE_PART('year', fp.cohort_month)) * 12 +
+        (DATE_PART('month', DATE_TRUNC('month', co.order_purchase_timestamp)) - DATE_PART('month', fp.cohort_month)) AS months_since_first_purchase
+    FROM customer_orders co
+    JOIN first_purchase fp ON co.customer_unique_id = fp.customer_unique_id
+),
+cohort_size AS (
+    SELECT
