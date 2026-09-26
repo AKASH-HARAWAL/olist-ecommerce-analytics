@@ -198,3 +198,17 @@ customer_activity AS (
 ),
 cohort_size AS (
     SELECT
+
+CREATE VIEW vw_delivery_review_correlation AS
+SELECT 
+    CASE 
+        WHEN o.order_delivered_customer_date > o.order_estimated_delivery_date THEN 'Late'
+        WHEN o.order_delivered_customer_date <= o.order_estimated_delivery_date THEN 'On-time or Early'
+    END AS delivery_status,
+    COUNT(*) AS num_orders,
+    ROUND(AVG(r.review_score), 2) AS avg_review_score
+FROM orders o
+JOIN order_reviews r ON o.order_id = r.order_id
+WHERE o.order_status = 'delivered'
+    AND o.order_delivered_customer_date IS NOT NULL
+GROUP BY delivery_status;    
