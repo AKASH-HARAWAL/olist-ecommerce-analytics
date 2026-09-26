@@ -212,3 +212,30 @@ JOIN order_reviews r ON o.order_id = r.order_id
 WHERE o.order_status = 'delivered'
     AND o.order_delivered_customer_date IS NOT NULL
 GROUP BY delivery_status;    
+
+CREATE VIEW vw_category_performance AS
+SELECT 
+    COALESCE(t.product_category_name_english, p.product_category_name) AS category,
+    COUNT(DISTINCT oi.order_id) AS total_orders,
+    ROUND(SUM(oi.price), 2) AS total_revenue,
+    ROUND(AVG(oi.price), 2) AS avg_item_price
+FROM order_items oi
+JOIN products p ON oi.product_id = p.product_id
+LEFT JOIN product_category_name_translation t ON p.product_category_name = t.product_category_name
+JOIN orders o ON oi.order_id = o.order_id
+WHERE o.order_status = 'delivered'
+GROUP BY category;
+
+CREATE VIEW vw_seller_performance AS
+SELECT 
+    oi.seller_id,
+    s.seller_state,
+    COUNT(DISTINCT oi.order_id) AS total_orders,
+    ROUND(SUM(oi.price), 2) AS total_revenue,
+    ROUND(AVG(r.review_score), 2) AS avg_review_score
+FROM order_items oi
+JOIN sellers s ON oi.seller_id = s.seller_id
+JOIN orders o ON oi.order_id = o.order_id
+LEFT JOIN order_reviews r ON o.order_id = r.order_id
+WHERE o.order_status = 'delivered'
+GROUP BY oi.seller_id, s.seller_state;
